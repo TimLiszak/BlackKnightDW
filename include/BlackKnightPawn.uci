@@ -1,0 +1,525 @@
+
+const EDEBF_ONELEG = 40;
+const ONELEG_SPEED_SPEED = 0.75f;
+const NOLEG_SPEED_SPEED = 0.6f;
+const NO_LEGS_OFFSET = 40.0f;
+
+var repnotify bool bLostHead;
+var repnotify bool bLostLeftArm;
+var repnotify bool bLostRightArm;
+var repnotify bool bLostLeftLeg;
+var repnotify bool bLostRightLeg;
+
+var bool bIsNoLegTranslation;
+var Vector NoLegTranslation1P;
+var Vector NoLegTranslation3P;
+
+var bool bGoreInitialized;
+
+var array<name> HiddenBones;
+
+replication
+{
+	if ( bNetDirty && !bNetOwner)
+		bLostHead, bLostLeftArm, bLostRightArm, bLostLeftLeg, bLostRightLeg;
+}
+
+/** Check on various replicated data and act accordingly.
+ */
+simulated event ReplicatedEvent(name VarName)
+{
+	if (VarName == 'bLostHead')
+	{
+		if (bLostHead)
+		{
+			ClientLoseHead();
+		}
+	}
+	else if (VarName == 'bLostLeftArm')
+	{
+		if (bLostLeftArm)
+		{
+			ClientLoseLeftArm();
+		}
+	}
+	else if (VarName == 'bLostRightArm')
+	{
+		if (bLostRightArm)
+		{
+			ClientLoseRightArm();
+		}
+	}
+	else if (VarName == 'bLostLeftLeg')
+	{
+		if (bLostLeftLeg)
+		{
+			ClientLoseLeftLeg();
+		}
+	}
+	else if (VarName == 'bLostRightLeg')
+	{
+		if (bLostRightLeg)
+		{
+			ClientLoseRightLeg();
+		}
+	}
+
+ 	super.ReplicatedEvent( VarName );
+}
+
+simulated function float PlayBloodSpurt(name BoneName, optional int RotateOffset = 0)
+{
+	local ParticleSystem BloodTemplate;
+	local Rotator BloodEffectRotation;
+	local float myLifespan;
+
+	BloodEffectRotation.Pitch = -16384;  // rotate 90 degrees
+	BloodEffectRotation.Pitch += RotateOffset;
+
+	// spray blood out of the neck and head
+	BloodTemplate = ParticleSystem'CHV_PartiPack.Particles.P_dismember1';
+	BloodComp = new(self) class'UTParticleSystemComponent';
+	BloodComp.bAutoActivate = true;
+	BloodComp.SetOwnerNoSee(false);
+	BloodComp.SetTemplate(BloodTemplate);
+	BloodComp.ActivateSystem(true);
+	BloodComp.SetScale(1.0f);
+	myLifespan = BloodComp.GetMaxLifespan();
+
+	Mesh.AttachComponent(BloodComp, Mesh.GetParentBone(BoneName),,BloodEffectRotation);
+	return myLifespan;
+}
+
+simulated function PlayDecapBlood()
+{
+	local float myLifespan;
+
+	myLifespan = PlayBloodSpurt('b_Head');
+
+	if (!IsTimerActive('PlayDecapBlood'))
+	{
+		SetTimer(myLifespan, true, 'PlayDecapBlood');
+	}
+}
+
+simulated function SetCharacterMeshInfo(SkeletalMesh SkelMesh, MaterialInterface HeadMaterial, MaterialInterface BodyMaterial)
+{
+	SkelMesh = PawnCharacter.default.DecapMesh;
+	Super.SetCharacterMeshInfo(SkelMesh, HeadMaterial, BodyMaterial);
+	
+	if(Physics != PHYS_RigidBody)
+	{
+		//Only do this if we're not ragdoll, otherwise it causes issues
+		Mesh.SetPhysicsAsset(Mesh.PhysicsAsset, true);	
+	}
+
+	SetPawnRBChannels(TRUE);
+
+	// Turn on angular motors on skeleton.
+	Mesh.bUpdateJointsFromAnimation = TRUE;
+	Mesh.bUpdateKinematicBonesFromAnimation = true;
+	Mesh.bEnableFullAnimWeightBodies = true;
+
+	Mesh.MinDistFactorForKinematicUpdate = 0.0f;
+	Mesh.SetRBLinearVelocity(Vect(0.0f,0.0f,0.0f));
+}
+
+simulated function InitDecapHead()
+{
+	Mesh.HideBoneByName('b_Head', PBO_Term);
+
+	PlayDecapBlood();
+}
+
+simulated function LoseHead()
+{
+	if (bLostHead)
+		return;
+
+	ClientLoseHead();
+	bLostHead = true;
+	SetTimer(10.0f, false, 'NoHeadDeath');
+}
+
+simulated function LoseLeftArm()
+{
+	if (bLostLeftArm)
+		return;
+
+	ClientLoseLeftArm();
+	bLostLeftArm = true;
+}
+
+simulated function LoseRightArm()
+{
+	if (bLostRightArm)
+		return;
+
+	ClientLoseRightArm();
+	bLostRightArm = true;
+}
+
+simulated function LoseLeftLeg()
+{
+	if (bLostLeftLeg)
+		return;
+
+	ClientLoseLeftLeg();
+	bLostLeftLeg = true;
+	HandleLegLoss();
+}
+
+simulated function LoseRightLeg()
+{
+	if (bLostRightLeg)
+		return;
+
+	ClientLoseRightLeg();
+	bLostRightLeg = true;
+	HandleLegLoss();
+}
+
+reliable client function ClientLoseHead()
+{
+	InitGoreMesh();
+
+	DetachBone('b_Neck');
+	bLostHead = true;
+
+	AOCPlayerController(Controller).ReceiveChatMessage("", "You lost your head! (10 seconds left to live)", EFAC_ALL);
+}
+
+reliable client function ClientLoseLeftArm()
+{
+	InitGoreMesh();
+
+	DetachBone('b_l_Shoulder', 8192);
+	bLostLeftArm = true;
+
+	AOCPlayerController(Controller).ReceiveChatMessage("", "You lost your left arm!", EFAC_ALL);
+}
+
+reliable client function ClientLoseRightArm()
+{
+	InitGoreMesh();
+
+	DetachBone('b_r_Shoulder', -8192);
+	bLostRightArm = true;
+
+	AOCPlayerController(Controller).ReceiveChatMessage("", "You lost your right arm!", EFAC_ALL);
+}
+
+reliable client function ClientLoseLeftLeg()
+{
+	InitGoreMesh();
+
+	DetachBone('b_l_knee');
+	bLostLeftLeg = true;
+	HandleLegLoss();
+
+	AOCPlayerController(Controller).ReceiveChatMessage("", "You lost your left leg!", EFAC_ALL);
+}
+
+reliable client function ClientLoseRightLeg()
+{
+	InitGoreMesh();
+
+	DetachBone('b_r_knee');
+	bLostRightLeg = true;
+	HandleLegLoss();
+
+	AOCPlayerController(Controller).ReceiveChatMessage("", "You lost your right leg!", EFAC_ALL);
+}
+
+simulated function DetachBone(name BoneName, optional int EffectRotation = 0)
+{
+	PlayBloodSpurt(BoneName, EffectRotation);
+	OwnerMesh.HideBoneByName(BoneName, PBO_Term);
+
+	if (ShouldJustHideBone(BoneName))
+	{
+		if (BoneName == 'b_Neck')
+		{
+			BoneName = 'b_Head';
+		}
+
+		// Some gore meshes don't work with animations, just hide the bone
+		Mesh.HideBoneByName(BoneName, PBO_Term);
+		HiddenBones.AddItem(BoneName);
+	}
+	else
+	{
+		Mesh.BreakConstraint(Vect(0,0,250), Location, BoneName, true);
+	}
+}
+
+simulated function ActualPlayDying(class<DamageType> DamageType, Vector HitLoc, optional bool bForceUseAnimation = false, optional AnimationInfo Info)
+{
+	local name BoneName;
+	foreach HiddenBones(BoneName)
+	{
+		// Hidden bones break ragdoll
+		Mesh.UnHideBoneByName(BoneName);
+	}
+
+	super.ActualPlayDying(DamageType, HitLoc, bForceUseAnimation, Info);
+}
+
+simulated function InitGoreMesh()
+{
+	local array<name> AllBoneNames;
+
+	if (bGoreInitialized)
+		return;
+
+	Mesh.ForceSkelUpdate();
+	Mesh.UpdateRBBonesFromSpaceBases(TRUE, FALSE);
+
+	Mesh.GetBoneNames(AllBoneNames);
+	Mesh.PhysicsAssetInstance.SetNamedBodiesFixed(true, AllBoneNames, Mesh,,true);
+
+	Mesh.PhysicsWeight = 1.f;
+
+	bGoreInitialized = true;
+}
+
+simulated function HandleLegLoss()
+{
+	local Vector NoLegsTranslation;
+
+	if (bLostLeftLeg && bLostRightLeg)
+	{
+		// Translate pawn down if he has no legs
+		if (!bIsNoLegTranslation)
+		{
+			NoLegsTranslation.Z = -NO_LEGS_OFFSET;
+			NoLegTranslation3P = Mesh.Translation + NoLegsTranslation;
+			NoLegTranslation1P = OwnerMesh.Translation + NoLegsTranslation;
+			bIsNoLegTranslation = true;
+		}
+
+		// Reduce movement speed
+		RemoveDebuff(EDEBF_ONELEG);
+		AddDebuff(true, EDEBF_ONELEG, NOLEG_SPEED_SPEED, -1.0f, false);
+	}
+	else
+	{
+		// Reduce movement speed
+		RemoveDebuff(EDEBF_ONELEG);
+		AddDebuff(true, EDEBF_ONELEG, ONELEG_SPEED_SPEED, -1.0f, false);
+	}
+}
+
+simulated function bool IsLeftHandedWeapon()
+{
+	local name HitActorAttachmentBoneName;
+	HitActorAttachmentBoneName = Mesh.GetSocketBoneName(AOCWeaponAttachment(CurrentWeaponAttachment).WeaponSocket);
+	if (Mesh.BoneIsChildOf(HitActorAttachmentBoneName, 'b_l_Shoulder'))
+	{
+		return true;
+	}
+	return false;
+}
+
+simulated function bool IsRightHandedWeapon()
+{
+	local name HitActorAttachmentBoneName;
+	HitActorAttachmentBoneName = Mesh.GetSocketBoneName(AOCWeaponAttachment(CurrentWeaponAttachment).WeaponSocket);
+	if (Mesh.BoneIsChildOf(HitActorAttachmentBoneName, 'b_r_Shoulder'))
+	{
+		return true;
+	}
+	return false;
+}
+
+reliable server function AttackOtherPawn(HitInfo Info, string DamageString, optional bool bCheckParryOnly = false, optional bool bBoxParrySuccess, optional bool bHitShield = false, optional SwingTypeImpactSound LastHit = ESWINGSOUND_Slash, optional bool bQuickKick = false)
+{
+	local `{GAMEMODE}Pawn Other;
+	local int PrevHealth;
+	Other = `{GAMEMODE}Pawn(Info.HitActor);
+
+	if (AOCWeapon_Fists(Other.Weapon) != none)
+	{
+		// For fist, can't parry if both arms are missing
+		if (Other.bLostRightArm &&
+			Other.bLostLeftArm)
+		{
+			Other.StateVariables.bIsParrying = false;
+		}
+	}
+	else
+	{
+		if (Other.bLostRightArm)
+		{
+			// If it's a right handed weapon
+			if (Other.IsLeftHandedWeapon())
+			{
+				// Can't parry without right arm
+				Other.StateVariables.bIsParrying = false;
+			}
+		}
+
+		if (Other.bLostLeftArm)
+		{
+			// Can't shield block without left arm
+			if (Other.StateVariables.bIsActiveShielding)
+			{
+				Other.StateVariables.bIsParrying = false;
+				Other.StateVariables.bIsActiveShielding = false;
+			}
+
+			// If it's a left handed weapon
+			if (Other.IsLeftHandedWeapon())
+			{
+				// Can't parry without left arm
+				Other.StateVariables.bIsParrying = false;
+			}
+		}
+	}
+
+	PrevHealth = Other.Health;
+	super.AttackOtherPawn(Info, DamageString, bCheckParryOnly, bBoxParrySuccess, bHitShield, LastHit, bQuickKick);
+
+	if (Other.Health < PrevHealth)
+	{
+		if (Info.BoneName == 'b_Neck' || Other.Mesh.BoneIsChildOf(Info.BoneName, 'b_Neck'))
+		{
+			Other.LoseHead();
+		}
+		else if (Info.BoneName == 'b_l_shoulder' || Other.Mesh.BoneIsChildOf(Info.BoneName, 'b_l_shoulder'))
+		{
+			Other.LoseLeftArm();
+		}
+		else if (Info.BoneName == 'b_r_shoulder' || Other.Mesh.BoneIsChildOf(Info.BoneName, 'b_r_shoulder'))
+		{
+			Other.LoseRightArm();
+		}
+		else if (Info.BoneName == 'b_l_leg' || Other.Mesh.BoneIsChildOf(Info.BoneName, 'b_l_leg'))
+		{
+			Other.LoseLeftLeg();
+		}
+		else if (Info.BoneName == 'b_r_leg' || Other.Mesh.BoneIsChildOf(Info.BoneName, 'b_r_leg'))
+		{
+			Other.LoseRightLeg();
+		}
+	}
+}
+
+simulated function StartFire(byte FireModeNum)
+{
+	if (bLostRightArm && (AOCRangeWeapon(Weapon) != None))
+	{
+		if (FireModeNum == Attack_Slash)
+		{
+			// Can't throw without right arm
+			return;
+		}
+	}
+
+	super.StartFire(FireModeNum);
+}
+
+simulated function SwitchToDecapMesh()
+{
+	InitGoreMesh();
+}
+
+simulated function NoHeadDeath()
+{
+	ReplicatedHitInfo.DamageStringWeap = Asc("M");
+	ReplicatedHitInfo.bBreakAllBones = false;
+	TakeDamage(500.0f, none, Vect(0.0f,0.0f,0.0f),Vect(0.0f,0.0f,0.0f), class'AOCDmgType_Generic');
+}
+
+simulated event Tick( float DeltaTime )
+{
+	super.Tick(DeltaTime);
+
+	if (IsLocallyControlled())
+	{
+		if (bLostLeftArm && IsLeftHandedWeapon())
+		{
+			CurrentWeaponAttachment.GotoState('Invalid');
+		}
+		if (bLostRightArm && IsRightHandedWeapon())
+		{
+			if (Weapon.CurrentFireMode != Attack_Shove)
+			{
+				CurrentWeaponAttachment.GotoState('Invalid');
+			}
+		}
+	}
+
+	if (bIsNoLegTranslation)
+	{
+		Mesh.SetTranslation(NoLegTranslation3P);
+		OwnerMesh.SetTranslation(NoLegTranslation1P);
+		StateVariables.bCanCrouch = false;
+	}
+}
+
+simulated function bool ShouldJustHideBone(name BoneName)
+{
+/*
+	if (class<AOCFamilyInfo_ManAtArms>(PawnFamily) != None)
+	{
+		if (BoneName == 'b_l_knee' || BoneName == 'b_r_knee')
+		{
+			return true;
+		}
+	}
+	else if (class<AOCFamilyInfo_Vanguard>(PawnFamily) != None)
+	{
+		if (BoneName == 'b_Neck' || BoneName == 'b_l_Shoulder' || BoneName == 'b_r_Shoulder')
+		{
+			return true;
+		}
+	}
+	*/
+	return false;
+}
+
+exec function Test(optional int i = -1)
+{
+	if (i < 0)
+	{
+		i = Rand(5);
+	}
+	switch(i)
+	{
+		case 0:
+			LoseHead();
+		return;
+		case 1:
+			LoseLeftArm();
+		return;
+		case 2:
+			LoseRightArm();
+		return;
+		case 3:
+			LoseLeftLeg();
+		return;
+		case 4:
+			LoseRightLeg();
+		return;
+	}
+}
+
+exec function TestSwing()
+{
+	if (IsTimerActive('StartFire'))
+	{
+		ClearTimer('StartFire');
+	}
+	else
+	{
+		SetTimer(1.0f, true, 'StartFire');
+	}
+}
+
+DefaultProperties
+{
+	// Disable foot IK
+	LeftFootControlName=
+	RightFootControlName=
+}
