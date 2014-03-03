@@ -1,5 +1,5 @@
 class BlackKnightFFAPlayerController extends AOCFFAPlayerController
     dependson(BlackKnightFFA);
 
-`include(BlackKnightDW/Include/BlackKnightFFA.uci)
-`include(BlackKnightDW/Include/BlackKnightPlayerController.uci)
+`include(BlackKnight/Include/BlackKnightFFA.uci)
+`include(BlackKnight/Include/BlackKnightPlayerController.uci)

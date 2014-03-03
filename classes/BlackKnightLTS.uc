@@ -1,4 +1,4 @@
 class BlackKnightLTS extends AOCLTS;
 
-`include(BlackKnightDW/Include/BlackKnightLTS.uci)
-`include(BlackKnightDW/Include/BlackKnightGame.uci)
+`include(BlackKnight/Include/BlackKnightLTS.uci)
+`include(BlackKnight/Include/BlackKnightGame.uci)

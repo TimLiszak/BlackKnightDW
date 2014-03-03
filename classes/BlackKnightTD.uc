@@ -1,4 +1,4 @@
 class BlackKnightTD extends AOCTD;
 
-`include(BlackKnightDW/Include/BlackKnightTD.uci)
-`include(BlackKnightDW/Include/BlackKnightGame.uci)
+`include(BlackKnight/Include/BlackKnightTD.uci)
+`include(BlackKnight/Include/BlackKnightGame.uci)

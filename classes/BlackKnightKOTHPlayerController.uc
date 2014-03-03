@@ -1,5 +1,5 @@
 class BlackKnightKOTHPlayerController extends AOCKOTHPlayerController
     dependson(BlackKnightKOTH);
 
-`include(BlackKnightDW/Include/BlackKnightKOTH.uci)
-`include(BlackKnightDW/Include/BlackKnightPlayerController.uci)
+`include(BlackKnight/Include/BlackKnightKOTH.uci)
+`include(BlackKnight/Include/BlackKnightPlayerController.uci)

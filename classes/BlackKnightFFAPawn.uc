@@ -1,4 +1,4 @@
 class BlackKnightFFAPawn extends AOCPawn;
 
-`include(BlackKnightDW/Include/BlackKnightFFA.uci)
-`include(BlackKnightDW/Include/BlackKnightPawn.uci)
+`include(BlackKnight/Include/BlackKnightFFA.uci)
+`include(BlackKnight/Include/BlackKnightPawn.uci)

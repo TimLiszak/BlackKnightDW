@@ -1,4 +1,4 @@
 class BlackKnightCDWDuel extends CDWDuel;
 
-`include(BlackKnightDW/Include/BlackKnightCDWDuel.uci)
-`include(BlackKnightDW/Include/BlackKnightGame.uci)
+`include(BlackKnight/Include/BlackKnightCDWDuel.uci)
+`include(BlackKnight/Include/BlackKnightGame.uci)

@@ -18,6 +18,9 @@ var bool bGoreInitialized;
 
 var array<name> HiddenBones;
 
+var Controller DecapController;
+var byte DecapDamageString;
+
 replication
 {
 	if ( bNetDirty && !bNetOwner)
@@ -313,7 +316,21 @@ simulated function HandleLegLoss()
 simulated function bool IsLeftHandedWeapon()
 {
 	local name HitActorAttachmentBoneName;
+
+	if (CDWWeapon_DualBase(Weapon) != None)
+	{
+		return CDWWeapon_DualBase(Weapon).UseLeftTracers();
+	}
+			
+	if (CDWWeaponAttachment_BoStaff(CurrentWeaponAttachment) != None)
+	{
+		return false;
+	}
 	HitActorAttachmentBoneName = Mesh.GetSocketBoneName(AOCWeaponAttachment(CurrentWeaponAttachment).WeaponSocket);
+	if (AOCWeaponAttachment(CurrentWeaponAttachment).bUseAlternativeTracers)
+	{
+		return true;
+	}
 	if (Mesh.BoneIsChildOf(HitActorAttachmentBoneName, 'b_l_Shoulder'))
 	{
 		return true;
@@ -324,8 +341,18 @@ simulated function bool IsLeftHandedWeapon()
 simulated function bool IsRightHandedWeapon()
 {
 	local name HitActorAttachmentBoneName;
+	
+	if (CDWWeapon_DualBase(Weapon) != None)
+	{
+		return CDWWeapon_DualBase(Weapon).UseRightTracers();
+	}
+			
+	if (CDWWeaponAttachment_BoStaff(CurrentWeaponAttachment) != None)
+	{
+		return true;
+	}
 	HitActorAttachmentBoneName = Mesh.GetSocketBoneName(AOCWeaponAttachment(CurrentWeaponAttachment).WeaponSocket);
-	if (Mesh.BoneIsChildOf(HitActorAttachmentBoneName, 'b_r_Shoulder'))
+	if (Mesh.BoneIsChildOf(HitActorAttachmentBoneName, 'b_r_Shoulder') && !AOCWeaponAttachment(CurrentWeaponAttachment).bUseAlternativeTracers)
 	{
 		return true;
 	}
@@ -352,7 +379,7 @@ reliable server function AttackOtherPawn(HitInfo Info, string DamageString, opti
 		if (Other.bLostRightArm)
 		{
 			// If it's a right handed weapon
-			if (Other.IsLeftHandedWeapon())
+			if (Other.IsRightHandedWeapon())
 			{
 				// Can't parry without right arm
 				Other.StateVariables.bIsParrying = false;
@@ -384,6 +411,8 @@ reliable server function AttackOtherPawn(HitInfo Info, string DamageString, opti
 	{
 		if (Info.BoneName == 'b_Neck' || Other.Mesh.BoneIsChildOf(Info.BoneName, 'b_Neck'))
 		{
+			Other.DecapController = Controller;
+			Other.DecapDamageString = Asc(DamageString);
 			Other.LoseHead();
 		}
 		else if (Info.BoneName == 'b_l_shoulder' || Other.Mesh.BoneIsChildOf(Info.BoneName, 'b_l_shoulder'))
@@ -409,9 +438,17 @@ simulated function StartFire(byte FireModeNum)
 {
 	if (bLostRightArm && (AOCRangeWeapon(Weapon) != None))
 	{
-		if (FireModeNum == Attack_Slash)
+		if (FireModeNum == Attack_Slash || FireModeNum == Attack_Aim)
 		{
 			// Can't throw without right arm
+			return;
+		}
+	}
+	if (bLostLeftArm && CDWWeapon_Yumi(Weapon) != None)
+	{
+		if (FireModeNum == Attack_Slash)
+		{
+			// Can't fire arrows without a bow
 			return;
 		}
 	}
@@ -419,24 +456,64 @@ simulated function StartFire(byte FireModeNum)
 	super.StartFire(FireModeNum);
 }
 
+simulated function SwitchWeapon(byte NewGroup)
+{
+	if (SecondaryWeapon == class'CDWWeapon_FlamingRum')
+	{
+		if (bLostRightArm && NewGroup == 2)
+		{
+			return;
+		}
+	}
+	else
+	{
+		if (bLostLeftArm && NewGroup == 2 && SecondaryWeapon.default.bIsQuickFireWeapon)
+		{
+			return;
+		}
+	}
+	super.SwitchWeapon(NewGroup);
+}
+
 simulated function SwitchToDecapMesh()
 {
 	InitGoreMesh();
+	
+	if(PawnCharacter.default.bCanDecap)
+	{
+		bIsDecappable = true;
+	}
 }
 
 simulated function NoHeadDeath()
 {
-	ReplicatedHitInfo.DamageStringWeap = Asc("M");
+	ReplicatedHitInfo.DamageStringWeap = DecapDamageString;
+	ReplicatedHitInfo.DamageStringDecap = Asc("3");
 	ReplicatedHitInfo.bBreakAllBones = false;
-	TakeDamage(500.0f, none, Vect(0.0f,0.0f,0.0f),Vect(0.0f,0.0f,0.0f), class'AOCDmgType_Generic');
+	TakeDamage(500.0f, DecapController, Vect(0.0f,0.0f,0.0f),Vect(0.0f,0.0f,0.0f), class'AOCDmgType_Generic');
 }
 
 simulated event Tick( float DeltaTime )
 {
+	local name beginSocketName;
+	local name endSocketName;
+
 	super.Tick(DeltaTime);
 
 	if (IsLocallyControlled())
 	{
+		if (AOCWeaponAttachment_Fists(CurrentWeaponAttachment) != None)
+		{
+			AOCWeaponAttachment_Fists(CurrentWeaponAttachment).GetTracerSocketNames(beginSocketName, endSocketName, 0);
+			if (bLostLeftArm && endSocketName == 'LeftHand')
+			{
+				CurrentWeaponAttachment.GotoState('Invalid');
+			}
+			if (bLostRightArm && endSocketName == 'RightHand')
+			{
+				CurrentWeaponAttachment.GotoState('Invalid');
+			}
+		}
 		if (bLostLeftArm && IsLeftHandedWeapon())
 		{
 			CurrentWeaponAttachment.GotoState('Invalid');
@@ -460,61 +537,108 @@ simulated event Tick( float DeltaTime )
 
 simulated function bool ShouldJustHideBone(name BoneName)
 {
-/*
-	if (class<AOCFamilyInfo_ManAtArms>(PawnFamily) != None)
+	if (class<CDWFamilyInfo_Spartan>(PawnFamily) != None)
 	{
 		if (BoneName == 'b_l_knee' || BoneName == 'b_r_knee')
 		{
 			return true;
 		}
 	}
-	else if (class<AOCFamilyInfo_Vanguard>(PawnFamily) != None)
-	{
-		if (BoneName == 'b_Neck' || BoneName == 'b_l_Shoulder' || BoneName == 'b_r_Shoulder')
-		{
-			return true;
-		}
-	}
-	*/
 	return false;
 }
 
-exec function Test(optional int i = -1)
+/** Inventory Attachment Handling */
+simulated function HandleReplicatedInventoryAttachment()
 {
-	if (i < 0)
-	{
-		i = Rand(5);
-	}
-	switch(i)
-	{
-		case 0:
-			LoseHead();
-		return;
-		case 1:
-			LoseLeftArm();
-		return;
-		case 2:
-			LoseRightArm();
-		return;
-		case 3:
-			LoseLeftLeg();
-		return;
-		case 4:
-			LoseRightLeg();
-		return;
-	}
-}
-
-exec function TestSwing()
-{
-	if (IsTimerActive('StartFire'))
-	{
-		ClearTimer('StartFire');
+	local int i;
+	local rotator Rot;
+	
+	if (class<CDWFamilyInfo_Samurai>(PawnFamily) != None)
+	{	
+		if(Role == ROLE_Authority && Worldinfo.NetMode != NM_Standalone && AOCAIController_NPC_Preview(Controller) == none)
+		{
+			//they're cosmetic, or used for client-side arrow hit detection in the case of shields; don't need on the server
+			return;
+		}
+		
+		DisplayCustomizationInfoOnShield();
 	}
 	else
 	{
-		SetTimer(1.0f, true, 'StartFire');
+		super.HandleReplicatedInventoryAttachment();
+		
+	
+		for (i = 0; i < 5; i++)
+		{
+			if (CDWInventoryAttachment_HeavySpartanShield(CurrentAttachedItems[i]) != none ||
+				CDWInventoryAttachment_LightSpartanShield(CurrentAttachedItems[i]) != none)
+			{
+				Rot.Roll = -16384;
+				CurrentAttachedItems[i].Mesh.SetRotation(Rot);
+			}
+		}
+		
 	}
+}
+
+simulated function WeaponAttachmentChanged()
+{
+	local vector RelativeLoc;
+	local rotator RelativeRot;
+	
+	super.WeaponAttachmentChanged();
+	
+	if (CDWWeaponAttachment_Yumi(CurrentWeaponAttachment) != None)
+	{
+		RelativeLoc.X = -1.007989f;
+		RelativeLoc.Y = -1.530002f;
+		RelativeLoc.Z = 0.598772f;
+		RelativeRot.Roll = -16384;
+		RelativeRot.Pitch = 0;
+		RelativeRot.Yaw = 2379;
+		Mesh.AttachComponent(CurrentWeaponAttachment.Mesh, 'B_L_WEAPON', RelativeLoc, RelativeRot);
+	}
+	else if (CDWWeaponAttachment_Crossbow(CurrentWeaponAttachment) != None)
+	{
+		RelativeLoc.X = 0.0f;
+		RelativeLoc.Y = 0.0f;
+		RelativeLoc.Z = -3.316210;
+		RelativeRot.Roll = -16384;
+		RelativeRot.Pitch = 16384;
+		RelativeRot.Yaw = 0;
+		Mesh.AttachComponent(CurrentWeaponAttachment.Mesh, 'B_R_WEAPON', RelativeLoc, RelativeRot);
+	}
+	else if (CDWWeaponAttachment_ThrowingKnife(CurrentWeaponAttachment) != None)
+	{
+		RelativeLoc.X = 15.000000f;
+		RelativeLoc.Y = 0.0f;
+		RelativeLoc.Z = 0.0f;
+		RelativeRot.Roll = 32768;
+		RelativeRot.Pitch = 0;
+		RelativeRot.Yaw = 0;
+		Mesh.AttachComponent(CurrentWeaponAttachment.Mesh, 'B_R_WEAPON', RelativeLoc, RelativeRot);
+	}
+	else if (CDWWeaponAttachment_BoStaff(CurrentWeaponAttachment) != None)
+	{
+		RelativeLoc.X = 0.0f;
+		RelativeLoc.Y = 0.0f;
+		RelativeLoc.Z = 7.498091f;
+		RelativeRot.Roll = 0;
+		RelativeRot.Pitch = -16384;
+		RelativeRot.Yaw = 0;
+		Mesh.AttachComponent(CurrentWeaponAttachment.Mesh, 'B_R_WEAPON', RelativeLoc, RelativeRot);
+	}
+	else if (CDWWeaponAttachment_Pistole(CurrentWeaponAttachment) != None)
+	{
+		RelativeLoc.X = 4.115849f;
+		RelativeLoc.Y = 0.061074f;
+		RelativeLoc.Z = 2.740196f;
+		RelativeRot.Roll = -32768;
+		RelativeRot.Pitch = 16384;
+		RelativeRot.Yaw = -16384;
+		Mesh.AttachComponent(CurrentWeaponAttachment.Mesh, 'B_R_WEAPON', RelativeLoc, RelativeRot);
+	}
+	
 }
 
 DefaultProperties

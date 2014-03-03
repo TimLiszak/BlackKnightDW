@@ -1,5 +1,5 @@
 class BlackKnightTOPlayerController extends AOCTeamObjectivePC
     dependson(BlackKnightTO);
 
-`include(BlackKnightDW/Include/BlackKnightTO.uci)
-`include(BlackKnightDW/Include/BlackKnightPlayerController.uci)
+`include(BlackKnight/Include/BlackKnightTO.uci)
+`include(BlackKnight/Include/BlackKnightPlayerController.uci)

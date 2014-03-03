@@ -1,1 +1,39 @@
-// nothing here
+//Welcome users to the game
+function ShowDefaultGameHeader()
+{
+	if (AOCGRI(Worldinfo.GRI) == none)
+	{
+		SetTimer(0.1f, false, 'ShowDefaultGameHeader');
+		return;
+	}
+
+	super.ShowDefaultGameHeader();
+
+	ReceiveChatMessage("","Welcome to Black Knight Mode!",EFAC_ALL,false,false,,false);
+
+	SetTimer(3.0f, false, 'ShowBlackKnightHeader');
+}
+
+simulated function ShowBlackKnightHeader()
+{
+	//ReceiveLocalizedHeaderText(Localize("ChatMessages", "Welcome", "GiantSlayers"),5.0f);
+	//Localization is broken at the moment...
+	ReceiveLocalizedHeaderText("Welcome to Black Knight Mode!",5.0f);
+}
+
+exec function StartThrow()
+{
+	if (!`{GAMEMODE}Pawn(Pawn).bLostRightArm)
+	{
+		super.StartThrow();
+	}
+}
+
+exec function StartQuickThrow()
+{
+	if (CDWWeapon_VikingBase(Pawn.Weapon) != none && `{GAMEMODE}Pawn(Pawn).bLostLeftArm)
+	{
+		return;
+	}
+	super.StartQuickThrow();
+}

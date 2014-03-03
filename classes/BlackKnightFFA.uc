@@ -1,4 +1,4 @@
 class BlackKnightFFA extends AOCFFA;
 
-`include(BlackKnightDW/Include/BlackKnightFFA.uci)
-`include(BlackKnightDW/Include/BlackKnightGame.uci)
+`include(BlackKnight/Include/BlackKnightFFA.uci)
+`include(BlackKnight/Include/BlackKnightGame.uci)

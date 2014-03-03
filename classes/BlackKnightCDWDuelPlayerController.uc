@@ -1,5 +1,5 @@
 class BlackKnightCDWDuelPlayerController extends CDWDuelPlayerController
     dependson(BlackKnightCDWDuel);
 
-`include(BlackKnightDW/Include/BlackKnightCDWDuel.uci)
-`include(BlackKnightDW/Include/BlackKnightPlayerController.uci)
+`include(BlackKnight/Include/BlackKnightCDWDuel.uci)
+`include(BlackKnight/Include/BlackKnightPlayerController.uci)

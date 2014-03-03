@@ -1,4 +1,4 @@
 class BlackKnightTUT extends AOCTUT;
 
-`include(BlackKnightDW/Include/BlackKnightTUT.uci)
-`include(BlackKnightDW/Include/BlackKnightGame.uci)
+`include(BlackKnight/Include/BlackKnightTUT.uci)
+`include(BlackKnight/Include/BlackKnightGame.uci)

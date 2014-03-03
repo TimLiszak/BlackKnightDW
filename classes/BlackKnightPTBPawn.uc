@@ -1,4 +1,4 @@
 class BlackKnightPTBPawn extends AOCPawn;
 
-`include(BlackKnightDW/Include/BlackKnightPTB.uci)
-`include(BlackKnightDW/Include/BlackKnightPawn.uci)
+`include(BlackKnight/Include/BlackKnightPTB.uci)
+`include(BlackKnight/Include/BlackKnightPawn.uci)

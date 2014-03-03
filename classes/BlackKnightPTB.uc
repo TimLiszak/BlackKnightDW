@@ -1,4 +1,4 @@
 class BlackKnightPTB extends CDWPlantTheBanner;
 
-`include(BlackKnightDW/Include/BlackKnightPTB.uci)
-`include(BlackKnightDW/Include/BlackKnightGame.uci)
+`include(BlackKnight/Include/BlackKnightPTB.uci)
+`include(BlackKnight/Include/BlackKnightGame.uci)

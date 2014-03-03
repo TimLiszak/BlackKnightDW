@@ -1,4 +1,4 @@
 class BlackKnightTUTPawn extends AOCPawn;
 
-`include(BlackKnightDW/Include/BlackKnightTUT.uci)
-`include(BlackKnightDW/Include/BlackKnightPawn.uci)
+`include(BlackKnight/Include/BlackKnightTUT.uci)
+`include(BlackKnight/Include/BlackKnightPawn.uci)
